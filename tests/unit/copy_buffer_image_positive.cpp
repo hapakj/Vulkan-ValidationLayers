@@ -497,3 +497,61 @@ TEST_F(PositiveCopyBufferImage, BufferCopiesStressTest) {
 
     m_command_buffer.End();
 }
+
+TEST_F(PositiveCopyBufferImage, InputAttachmentExtendedBit) {
+    TEST_DESCRIPTION("Image to buffer and buffer to image tests");
+    AddRequiredExtensions(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+    AddRequiredExtensions(VK_KHR_MAINTENANCE_2_EXTENSION_NAME);
+    RETURN_IF_SKIP(Init());
+
+    // Verify R8G8B8A8_UINT format is supported for transfer
+    bool missing_rgba_support = false;
+    VkFormatProperties props = {0, 0, 0};
+    vk::GetPhysicalDeviceFormatProperties(m_device->Physical().handle(), VK_FORMAT_R8G8B8A8_UINT, &props);
+    missing_rgba_support |= (props.bufferFeatures == 0 && props.linearTilingFeatures == 0 && props.optimalTilingFeatures == 0);
+    missing_rgba_support |= (props.optimalTilingFeatures & VK_FORMAT_FEATURE_TRANSFER_SRC_BIT) == 0;
+
+    if (missing_rgba_support) {
+        GTEST_SKIP() << "R8G8B8A8_UINT transfer unsupported";
+    }
+
+    // 64^2 texels, 16k, extended bit
+    VkImageCreateInfo create_info_extended_bit = vkt::Image::ImageCreateInfo2D(
+        64, 64, 1, 1, VK_FORMAT_R8G8B8A8_UINT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+
+    create_info_extended_bit.flags = VK_IMAGE_CREATE_EXTENDED_USAGE_BIT;
+
+    vkt::Image image_16k_extended_bit(*m_device, create_info_extended_bit);
+    image_16k_extended_bit.SetLayout(VK_IMAGE_LAYOUT_GENERAL);
+
+    // 64^2 texels, 16k, input and extended bit
+    VkImageCreateInfo create_info_extended_input_bit = vkt::Image::ImageCreateInfo2D(
+        64, 64, 1, 1, VK_FORMAT_R8G8B8A8_UINT,
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+
+    create_info_extended_input_bit.flags = VK_IMAGE_CREATE_EXTENDED_USAGE_BIT;
+
+    vkt::Image image_16k_extended_input_bit(*m_device, create_info_extended_input_bit);
+    image_16k_extended_input_bit.SetLayout(VK_IMAGE_LAYOUT_GENERAL);
+
+    VkBufferUsageFlags transfer_usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    vkt::Buffer buffer_16k(*m_device, 16384, transfer_usage);  // 16k
+
+    VkBufferImageCopy region = {};
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {64, 64, 1};
+    region.bufferOffset = 0;
+
+    m_command_buffer.Begin();
+
+    vk::CmdCopyImageToBuffer(m_command_buffer.handle(), image_16k_extended_bit.handle(), VK_IMAGE_LAYOUT_GENERAL,
+                             buffer_16k.handle(), 1, &region);
+
+    vk::CmdCopyImageToBuffer(m_command_buffer.handle(), image_16k_extended_input_bit.handle(), VK_IMAGE_LAYOUT_GENERAL,
+                             buffer_16k.handle(), 1, &region);
+
+    m_command_buffer.End();
+}

@@ -2226,6 +2226,15 @@ bool CoreChecks::ValidateCmdCopyImageToBuffer(VkCommandBuffer commandBuffer, VkI
                                                     src_image_loc, vuid);
         }
 
+        if ((src_image_state->create_info.usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) &&
+            !(src_image_state->create_info.flags & VK_IMAGE_CREATE_EXTENDED_USAGE_BIT)) {
+            const LogObjectList objlist(commandBuffer, srcImage, dstBuffer);
+            vuid = is_2 ? "VUID-vkCmdCopyImageToBuffer2-srcImage-TEST1" : "VUID-vkCmdCopyImageToBuffer-srcImage-TEST1";
+            skip |= LogError(vuid, objlist, src_image_loc,
+                             "If srcImage was not created with VK_IMAGE_CREATE_EXTENDED_USAGE_BIT, then srcImage must not have "
+                             "been created with VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT");
+        }
+
         if (!IsValueIn(srcImageLayout,
                        {VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL})) {
             vuid = is_2 ? "VUID-VkCopyImageToBufferInfo2-srcImageLayout-01397" : "VUID-vkCmdCopyImageToBuffer-srcImageLayout-01397";
